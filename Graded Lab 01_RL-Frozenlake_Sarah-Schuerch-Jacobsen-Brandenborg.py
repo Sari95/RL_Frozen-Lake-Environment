@@ -625,9 +625,244 @@ print("Success rate (mean over episodes): 5×5 =", np.mean(success_inc),
 print("Avg trajectory length (mean):      5×5 =", np.mean(epi_len_inc),
       "| 11×11 =", np.mean(epi_len_inc_11))
 
-"""## 3. Q-Learning - Task 3
+"""## 3. Q-Learning - Task 3"""
 
-Explanation
-"""
+class Qlearning:
+    def __init__(self, learning_rate, gamma, state_size, action_size):
+        self.state_size = state_size
+        self.action_size = action_size
+        self.learning_rate = learning_rate
+        self.gamma = gamma
+        self.reset_qtable()
+        self.qtable = np.zeros((self.state_size, self.action_size)) #C 25X4 table of the 25 states and 4 posible actions
+
+
+    def update(self, state, action, reward, new_state):
+        TD_target = reward + self.gamma * np.max(self.qtable[new_state, :])
+        TD_error = TD_target - self.qtable[state, action]
+        return self.qtable[state, action] + self.learning_rate * TD_error
+
+    def reset_qtable(self):
+        """Reset the Q-table."""
+        self.qtable = np.zeros((self.state_size, self.action_size))
+
+
+
+class EpsilonGreedy:
+    def __init__(self, epsilon, epsilon_min, decay_rate):
+        self.epsilon = epsilon
+        self.epsilon_min = epsilon_min
+        self.decay_rate = decay_rate
+
+    def choose_action(self, action_space, state, qtable):
+        if np.random.rand() < self.epsilon:
+            action = action_space.sample()
+        else:
+            # Get all actions that have the maximum Q-value
+            max_q = np.max(qtable[state, :])
+            best_actions = np.where(qtable[state, :] == max_q)[0]
+            # Randomly choose among the best actions
+            action = np.random.choice(best_actions)
+        return action
+
+    def decay_epsilon(self):
+      self.epsilon = max(self.epsilon_min,  self.epsilon * self.decay_rate)
+
+def run_env(env, params):
+    rewards = np.zeros((params.total_episodes, params.n_runs))
+    steps = np.zeros((params.total_episodes, params.n_runs))
+    episodes = np.arange(params.total_episodes)
+    qtables = np.zeros((params.n_runs, params.state_size, params.action_size))
+    all_states = []
+    all_actions = []
+
+    for run in range(params.n_runs):  # Run several times to account for stochasticity
+        learner.reset_qtable()  # Reset the Q-table between runs
+
+        for episode in tqdm(
+            episodes, desc=f"Run {run}/{params.n_runs} - Episodes", leave=False
+        ):
+            state = env.reset(seed=params.seed)[0]  # Reset the environment
+            step = 0
+            done = False
+            total_rewards = 0
+
+            while not done:
+                action = explorer.choose_action(
+                    action_space=env.action_space, state=state, qtable=learner.qtable
+                )
+
+                # Log all states and actions
+                all_states.append(state)
+                all_actions.append(action)
+
+                # Take the action (a) and observe the outcome state(s') and reward (r)
+                new_state, reward, terminated, truncated, info = env.step(action)
+
+                done = terminated or truncated
+
+                learner.qtable[state, action] = learner.update(
+                    state, action, reward, new_state
+                )
+
+                total_rewards += reward
+                step += 1
+
+                # Our new state is state
+                state = new_state
+
+            # Log all rewards and steps
+            rewards[episode, run] = total_rewards
+            steps[episode, run] = step
+            explorer.decay_epsilon()
+        qtables[run, :, :] = learner.qtable
+
+    return rewards, steps, episodes, qtables, all_states, all_actions
+
+
+def run_env_11(env, params):
+    rewards = np.zeros((params.total_episodes, params.n_runs))
+    steps = np.zeros((params.total_episodes, params.n_runs))
+    episodes = np.arange(params.total_episodes)
+    qtables = np.zeros((params.n_runs, params.state_size, params.action_size))
+    all_states = []
+    all_actions = []
+
+    for run in range(params.n_runs):  # Run several times to account for stochasticity
+        learner_11.reset_qtable()  # Reset the Q-table between runs
+
+        for episode in tqdm(
+            episodes, desc=f"Run {run}/{params.n_runs} - Episodes", leave=False
+        ):
+            state = env.reset(seed=params.seed)[0]  # Reset the environment
+            step = 0
+            done = False
+            total_rewards = 0
+
+            while not done:
+                action = explorer.choose_action(
+                    action_space=env.action_space, state=state, qtable=learner_11.qtable
+                )
+
+                # Log all states and actions
+                all_states.append(state)
+                all_actions.append(action)
+
+                # Take the action (a) and observe the outcome state(s') and reward (r)
+                new_state, reward, terminated, truncated, info = env.step(action)
+
+                done = terminated or truncated
+
+                learner_11.qtable[state, action] = learner_11.update(
+                    state, action, reward, new_state
+                )
+
+                total_rewards += reward
+                step += 1
+
+                # Our new state is state
+                state = new_state
+
+            # Log all rewards and steps
+            rewards[episode, run] = total_rewards
+            steps[episode, run] = step
+            explorer.decay_epsilon()
+        qtables[run, :, :] = learner_11.qtable
+
+    return rewards, steps, episodes, qtables, all_states, all_actions
+
+    rewards, steps, episodes, qtables, all_states, all_actions = run_env(
+    env = env,
+    params = params
+)
+
+rewards_11, steps_11, episodes_11, qtables_11, all_states_11, all_actions_11 = run_env_11(
+    env = env_11,
+    params = params_11
+)
+
+plt.plot(np.mean(rewards, axis=1))
+plt.xlabel("Episode")
+plt.ylabel("Average Reward")
+plt.title("Learning Progress (Q-Learning)")
+plt.show()
+
+
+# ========================
+# Combined Plots: 5x5 vs 11x11
+# ========================
+K = 50
+
+fig, axes = plt.subplots(3, 1, figsize=(8, 14))
+plt.subplots_adjust(hspace=0.4)
+
+# ========================
+# Plot 1: Success Rate
+# ========================
+axes[0].plot(moving_average(rewards.mean(axis=1), K), label="5x5 (SMA 50)", color="#ff7f0e")
+axes[0].plot(moving_average(rewards_11.mean(axis=1), K), label="11x11 (SMA 50)", color="#1f77b4")
+axes[0].set_xlabel("Episode")
+axes[0].set_ylabel("Success Rate")
+axes[0].set_title("Learning Progress — Q-Learning (ε-greedy)")
+axes[0].set_ylim(0, 1.0)
+axes[0].legend()
+axes[0].grid(alpha=0.3)
+
+# ========================
+# Plot 2: Average Trajectory Length
+# ========================
+axes[1].plot(moving_average(steps.mean(axis=1), K), label="5x5 (SMA 50)", color="#ff7f0e")
+axes[1].plot(moving_average(steps_11.mean(axis=1), K), label="11x11 (SMA 50)", color="#1f77b4")
+
+axes[1].axhline(y=8, color="gray", linestyle="--", linewidth=1, alpha=0.7, label="Target: 8 steps")
+axes[1].axhline(y=20, color="gray", linestyle=":", linewidth=1, alpha=0.7, label="Target: 20 steps")
+
+axes[1].set_xlabel("Episode")
+axes[1].set_ylabel("Average Steps per Episode")
+axes[1].set_title("Average Trajectory Length — Q-Learning")
+axes[1].legend()
+axes[1].grid(alpha=0.3)
+
+# ========================
+# Plot 3: State-Value Heatmaps
+# ========================
+Q_avg_5 = qtables.mean(axis=0)
+V_5 = Q_avg_5.max(axis=1)
+V_grid_5 = V_5.reshape(params.map_size, params.map_size)
+
+Q_avg_11 = qtables_11.mean(axis=0)
+V_11 = Q_avg_11.max(axis=1)
+V_grid_11 = V_11.reshape(params_11.map_size, params_11.map_size)
+
+# Plot heatmaps side by side within one row
+heatmap_fig, heatmap_axes = plt.subplots(1, 2, figsize=(13, 6))
+sns.heatmap(V_grid_5, annot=True, fmt=".2f", cmap="YlGnBu",
+            cbar_kws={"label": "V(s)"}, ax=heatmap_axes[0])
+heatmap_axes[0].set_title("State-Value (5x5)")
+
+sns.heatmap(V_grid_11, annot=True, fmt=".2f", cmap="YlGnBu",
+            cbar_kws={"label": "V(s)"}, ax=heatmap_axes[1])
+heatmap_axes[1].set_title("State-Value (11x11)")
+
+heatmap_fig.suptitle("Estimated State-Value Function — Q-Learning (ε-greedy)", fontsize=14)
+plt.tight_layout()
+plt.show()
+
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 7))
+
+# Plot 5x5 environment
+ax1.imshow(env.render())
+ax1.set_title("FrozenLake 5x5 Environment", fontsize=16, fontweight='bold')
+ax1.axis('off')
+
+# Plot 11x11 environment
+ax2.imshow(env_11.render())
+ax2.set_title("FrozenLake 11x11 Environment", fontsize=16, fontweight='bold')
+ax2.axis('off')
+
+# Add overall title and legend
+plt.suptitle("Environment", fontsize=18, fontweight='bold', y=0.95)
+plt.tight_layout()
+
 
 #Code
